@@ -22,7 +22,7 @@ class RenderData : private boost::noncopyable {
   virtual ~RenderData();
 
   TileNode*     getNode() const;
-  void          setNode(TileNode* node);
+  void          setNode(TileNode* node, bool secTileActive = false);
   int           getLevel() const;
   glm::int64    getPatchIdx() const;
   TileId const& getTileId() const;
@@ -34,13 +34,15 @@ class RenderData : private boost::noncopyable {
   void setLastFrame(int frame);
   int  getAge(int frame) const;
 
+  bool getSecTileActive();
+
   BoundingBox<double> const& getBounds() const;
   void                       setBounds(BoundingBox<double> const& tb);
   void                       removeBounds();
   bool                       hasBounds() const;
 
  protected:
-  explicit RenderData(TileNode* node = NULL);
+  explicit RenderData(TileNode* node = NULL, bool secTileActive = false);
   BoundingBox<double> mTb;
   bool                mHasBounds;
 
@@ -48,6 +50,7 @@ class RenderData : private boost::noncopyable {
   TileNode* mNode;
   int       mTexLayer;
   int       mLastFrame;
+  bool mSecTileActive;
 };
 
 } // namespace csp::lodbodies

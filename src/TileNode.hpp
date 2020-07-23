@@ -21,8 +21,8 @@ class TileNode {
 
  public:
   explicit TileNode();
-  explicit TileNode(TileBase* tile, int childMaxLevel = -1);
-  explicit TileNode(std::unique_ptr<TileBase>&& tile, int childMaxLevel = -1);
+  explicit TileNode(TileBase* tile, int childMaxLevel = -1, TileBase* secTile = nullptr);
+  explicit TileNode(std::unique_ptr<TileBase>&& tile, int childMaxLevel = -1, std::unique_ptr<TileBase>&& secTile = nullptr);
 
   // move constructor -- disabled: triggers a bug with gcc 4.3?
   //     TileNode(BOOST_RV_REF(TileNode) source);
@@ -40,6 +40,8 @@ class TileNode {
   /// Returns the tile owned by this, or NULL if there is no such tile.
   TileBase* getTile() const;
 
+  TileBase* getSecTile() const;
+
   /// Gives up ownership of the tile owned by this and returns it, or NULL if there is no such tile.
   /// It is now the callers responsibility to correctly dispose of the tile.
   TileBase* releaseTile();
@@ -47,6 +49,8 @@ class TileNode {
   /// Sets the tile to be owned by this. Exclusive ownership of the tile is taken by this and when
   /// this TileNode is destroyed the tile is destroyed as well.
   void setTile(TileBase* tile);
+
+  void setSecTile(TileBase* tile);
 
   /// Returns the child at childIdx (must be in [0, 3]).
   TileNode* getChild(int childIdx) const;
@@ -67,13 +71,23 @@ class TileNode {
 
   TileNode* getParent() const;
 
+  std::string getTime() const;
+  std::string getSecTime() const;
+
+  void setTime(std::string time);
+  void setSecTime(std::string time);
+
  private:
   void setParent(TileNode* parent);
 
   std::unique_ptr<TileBase>                mTile;
+  std::unique_ptr<TileBase>                mSecTile;
   TileNode*                                mParent;
   std::array<std::unique_ptr<TileNode>, 4> mChildren;
   int                                      mChildMaxLevel;
+
+  std::string mTime;
+  std::string mSecTime;
 };
 
 /// Returns if the node is a leaf, i.e. if it can not be further refined.

@@ -578,7 +578,7 @@ glm::int64 HEALPixLevel::replaceBits(glm::int64 evenBits, glm::int64 oddBits) co
   // north polar cap (row 0)
   if (y >= ySep) {
     // Only 0 - 3
-    assert(basePatchIdx < 4);
+    //assert(basePatchIdx < 4);
 
     double i = sqrt((1.0 - y) * 3.0);
     double j = 2 * x * i + 0.5;
@@ -590,7 +590,7 @@ glm::int64 HEALPixLevel::replaceBits(glm::int64 evenBits, glm::int64 oddBits) co
   // south polar cap (row 2)
   else if (y < -ySep) {
     // Only 8 - 11
-    assert(basePatchIdx > 7);
+    //assert(basePatchIdx > 7);
 
     double i2 = sqrt(3.0 * (1.0 + y));
 

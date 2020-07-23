@@ -24,7 +24,7 @@ LodBody::LodBody(std::shared_ptr<cs::core::GraphicsEngine> const& graphicsEngine
     std::string const& sFrameName, std::shared_ptr<GLResources> const& glResources,
     std::vector<std::shared_ptr<TileSource>> const& dems,
     std::vector<std::shared_ptr<TileSource>> const& imgs, double tStartExistence,
-    double tEndExistence)
+    double tEndExistence, std::shared_ptr<cs::core::TimeControl> timeControl)
     : cs::scene::CelestialBody(sCenterName, sFrameName, tStartExistence, tEndExistence)
     , mGraphicsEngine(graphicsEngine)
     , mProperties(pProperties)
@@ -33,7 +33,8 @@ LodBody::LodBody(std::shared_ptr<cs::core::GraphicsEngine> const& graphicsEngine
     , mShader(graphicsEngine, pProperties, pGuiManager)
     , mRadii(cs::core::SolarSystem::getRadii(sCenterName))
     , mDEMtileSources(dems)
-    , mIMGtileSources(imgs) {
+    , mIMGtileSources(imgs)
+    , mTimeControl(timeControl) {
 
   pVisible.onChange().connect([this](bool val) {
     if (val)
@@ -57,8 +58,8 @@ LodBody::LodBody(std::shared_ptr<cs::core::GraphicsEngine> const& graphicsEngine
     for (auto const& s : mDEMtileSources) {
       if (s->getName() == val) {
         mPlanet.setDEMSource(s.get());
-        mGuiManager->getGui()->callJavascript(
-            "CosmoScout.lodBody.setElevationDataCopyright", s->getCopyright());
+        mGuiManager->getSideBar()->callJavascript(
+            "set_elevation_data_copyright", s->getCopyright());
         break;
       }
     }
@@ -68,15 +69,14 @@ LodBody::LodBody(std::shared_ptr<cs::core::GraphicsEngine> const& graphicsEngine
     if (val == "None") {
       mShader.pEnableTexture = false;
       mPlanet.setIMGSource(nullptr);
-      mGuiManager->getGui()->callJavascript("CosmoScout.lodBody.setMapDataCopyright", "");
+      mGuiManager->getSideBar()->callJavascript("set_map_data_copyright", "");
     } else {
       for (auto const& s : mIMGtileSources) {
         if (s->getName() == val) {
           mShader.pEnableTexture = true;
           mShader.pTextureIsRGB  = (s->getDataType() == TileDataType::eU8Vec3);
           mPlanet.setIMGSource(s.get());
-          mGuiManager->getGui()->callJavascript(
-              "CosmoScout.lodBody.setMapDataCopyright", s->getCopyright());
+          mGuiManager->getSideBar()->callJavascript("set_map_data_copyright", s->getCopyright());
           break;
         }
       }
@@ -171,8 +171,43 @@ void LodBody::update(double tTime, cs::scene::CelestialObserver const& oObs) {
 
 bool LodBody::Do() {
   if (getIsInExistence() && pVisible.get()) {
+    std::vector<csp::lodbodies::timeInterval> timeIntervals;
+    for (auto const& s : mIMGtileSources) {
+      if (s->getName() == pActiveTileSourceIMG.get()) {
+        parseIsoString(s->getTimeIntervals(), timeIntervals);
+        break;
+      }
+    }
     cs::utils::FrameTimings::ScopedTimer timer("LoD-Body " + getCenterName());
-    mPlanet.Do();
+
+    std::string timeStr = "";
+    std::string secTimeStr = "";
+
+    boost::posix_time::ptime time = cs::utils::convert::toBoostTime(mTimeControl->pSimulationTime.get());
+    boost::posix_time::time_duration timeSinceStart;
+    int intervalDuration;
+    std::string format;
+    boost::posix_time::ptime intervalAfter;
+    bool inInterval = timeInIntervals(time, timeIntervals, timeSinceStart, intervalDuration, format);
+    boost::posix_time::ptime startTime = time - boost::posix_time::microseconds(time.time_of_day().fractional_seconds());
+    if(inInterval) {
+      boost::posix_time::time_duration timeDuration = boost::posix_time::seconds(intervalDuration);
+      if(intervalDuration != 0) {
+        startTime -=  boost::posix_time::seconds(timeSinceStart.total_seconds() % intervalDuration);
+      }
+      intervalAfter = getStartTime(startTime + timeDuration, intervalDuration);
+      timeStr = timeToString(format.c_str(), startTime);
+      inInterval = timeInIntervals(intervalAfter, timeIntervals, timeSinceStart, intervalDuration, format);
+    }
+    float fade = 0;
+    if(inInterval) {
+      secTimeStr =  timeToString(format.c_str(), intervalAfter);
+      fade = (double)(intervalAfter - time).total_seconds() / (double)(intervalAfter - startTime).total_seconds();
+      timeStr += "/" + secTimeStr;
+      boost::posix_time::time_duration timeDuration = boost::posix_time::seconds(intervalDuration);
+      secTimeStr += "/" + timeToString(format.c_str(), getStartTime(intervalAfter + timeDuration, intervalDuration));
+    }
+    mPlanet.doTime(timeStr, secTimeStr, fade);
   }
 
   return true;

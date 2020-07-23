@@ -51,6 +51,7 @@ class VistaPlanet : public IVistaOpenGLDraw, public cs::graphics::ShadowCaster {
   virtual void doShadows() override;
   virtual bool getWorldTransform(VistaTransformMatrix& matTransform) const;
 
+  bool doTime(std::string time = "", std::string secTime = "", float fade=0);
   virtual bool Do();
   virtual bool GetBoundingBox(VistaBoundingBox& bb);
 
@@ -108,15 +109,15 @@ class VistaPlanet : public IVistaOpenGLDraw, public cs::graphics::ShadowCaster {
   LODVisitor const& getLODVisitor() const;
 
  private:
-  void doFrame();
+  void doFrame(std::string time = "", std::string secTime = "", float fade = 0);
   void updateStatistics(int frameCount);
   void updateTileBounds();
   void updateTileTrees(int frameCount);
   void traverseTileTrees(int frameCount, glm::dmat4 const& matVM, glm::fmat4x4 const& matP,
-      glm::ivec4 const& viewport);
+      glm::ivec4 const& viewport, std::string time, std::string secTime);
   void processLoadRequests();
   void renderTiles(int frameCount, glm::dmat4 const& matVM, glm::fmat4x4 const& matP,
-      cs::graphics::ShadowMap* shadowMap);
+      cs::graphics::ShadowMap* shadowMap, float fade = 0);
 
   glm::dmat4 getModelviewMatrix() const;
   glm::dmat4 getProjectionMatrix() const;

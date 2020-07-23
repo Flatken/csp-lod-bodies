@@ -7,6 +7,7 @@
 #include "TileQuadTree.hpp"
 
 #include "HEALPix.hpp"
+#include <iostream>
 
 namespace csp::lodbodies {
 
@@ -29,7 +30,9 @@ bool insertNode(TileQuadTree* tree, TileNode* node) {
   TileId const& tileId = node->getTileId();
 
   if (tileId.level() == 0) {
-    assert(tree->getRoot(HEALPix::getRootIdx(tileId)) == NULL);
+    if(tree->getRoot(HEALPix::getRootIdx(tileId)) != NULL) {
+      removeNode(tree, tree->getRoot(HEALPix::getRootIdx(tileId)));
+    }
 
     tree->setRoot(HEALPix::getRootIdx(tileId), node);
   } else {
@@ -40,8 +43,9 @@ bool insertNode(TileQuadTree* tree, TileNode* node) {
     }
 
     if (parent) {
-      // Catch cases where an existing child would be overwritten
-      assert(parent->getChild(HEALPix::getChildIdxAtLevel(tileId, tileId.level())) == NULL);
+      if(parent->getChild(HEALPix::getChildIdxAtLevel(tileId, tileId.level())) != NULL) {
+        removeNode(tree, parent->getChild(HEALPix::getChildIdxAtLevel(tileId, tileId.level())));
+      }
 
       parent->setChild(HEALPix::getChildIdxAtLevel(tileId, tileId.level()), node);
     } else {

@@ -9,6 +9,7 @@
 
 #include "../../../src/cs-graphics/Shadows.hpp"
 #include "../../../src/cs-scene/CelestialBody.hpp"
+#include "../../../src/cs-core/TimeControl.hpp"
 
 #include "PlanetShader.hpp"
 #include "TileSource.hpp"
@@ -50,7 +51,7 @@ class LodBody : public cs::scene::CelestialBody, public IVistaOpenGLDraw {
       std::string const& sFrameName, std::shared_ptr<GLResources> const& glResources,
       std::vector<std::shared_ptr<TileSource>> const& dems,
       std::vector<std::shared_ptr<TileSource>> const& imgs, double tStartExistence,
-      double tEndExistence);
+      double tEndExistence, std::shared_ptr<cs::core::TimeControl> timeControl);
   virtual ~LodBody();
 
   PlanetShader const& getShader() const;
@@ -78,6 +79,7 @@ class LodBody : public cs::scene::CelestialBody, public IVistaOpenGLDraw {
   std::shared_ptr<Plugin::Properties>               mProperties;
   std::shared_ptr<const cs::scene::CelestialObject> mSun;
   std::shared_ptr<cs::core::GuiManager>             mGuiManager;
+  std::shared_ptr<cs::core::TimeControl> mTimeControl;
 
   std::vector<std::shared_ptr<TileSource>> mDEMtileSources;
   std::vector<std::shared_ptr<TileSource>> mIMGtileSources;

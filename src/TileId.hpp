@@ -18,6 +18,7 @@ class TileId {
  public:
   explicit TileId();
   explicit TileId(int level, glm::int64 patchIdx);
+  explicit TileId(int level, glm::int64 patchIdx, std::string time, std::string secTime);
 
   void reset();
 
@@ -28,9 +29,17 @@ class TileId {
   glm::int64 patchIdx() const;
   void       patchIdx(glm::int64 pi);
 
+  std::string getTime() const;
+  std::string getSecTime() const;
+
+  void setTimes(std::string time, std::string secTime);
+
  private:
   glm::int64 mPatchIdx;
   int        mLevel;
+
+  std::string mTime;
+  std::string mSecTime;
 };
 
 bool isValid(TileId const& tileId);

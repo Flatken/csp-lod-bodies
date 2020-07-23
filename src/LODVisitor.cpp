@@ -211,6 +211,7 @@ LODVisitor::LODVisitor(
     , mLoadIMG()
     , mRenderDEM()
     , mRenderIMG()
+    , mSecRenderIMG()
     , mFrameCount(0)
     , mUpdateLOD(true)
     , mUpdateCulling(true) {
@@ -256,6 +257,7 @@ void LODVisitor::setTreeManagerIMG(TreeManagerBase* treeMgr) {
     setTreeIMG(mTreeMgrIMG->getTree());
     mLoadIMG.reserve(PreAllocSize);
     mRenderIMG.reserve(PreAllocSize);
+    mSecRenderIMG.reserve(PreAllocSize);
   }
 }
 
@@ -284,6 +286,7 @@ bool LODVisitor::preTraverse() {
   mLoadIMG.clear();
   mRenderDEM.clear();
   mRenderIMG.clear();
+  mSecRenderIMG.clear();
   mStackTop = -1;
 
   // make sure root nodes are present
@@ -297,7 +300,7 @@ bool LODVisitor::preTraverse() {
 
     if (mTreeIMG) {
       if (!mTreeIMG->getRoot(i)) {
-        mLoadIMG.push_back(TileId(0, i));
+        mLoadIMG.push_back(TileId(0, i , mTime, mSecTime));
         result = false;
       }
     }
@@ -385,7 +388,13 @@ bool LODVisitor::preVisitRoot(TileId const& tileId) {
   if (mTreeMgrIMG && state.mNodeIMG) {
     RenderDataImg* rd = mTreeMgrIMG->find<RenderDataImg>(state.mNodeIMG);
     state.mRdIMG      = rd;
-    state.mRdIMG->setLastFrame(mFrameCount);
+    if(state.mRdIMG != NULL) {
+      state.mRdIMG->setLastFrame(mFrameCount);
+    }
+    RenderDataImg* secrd = mTreeMgrIMG->findSec<RenderDataImg>(state.mNodeIMG);
+    if(secrd != NULL) {
+      secrd->setLastFrame(mFrameCount);
+    }
   } else {
     state.mRdIMG = NULL;
   }
@@ -427,7 +436,13 @@ bool LODVisitor::preVisit(TileId const& tileId) {
   if (mTreeMgrIMG && !state.mLastIMG && state.mNodeIMG) {
     RenderDataImg* rd = mTreeMgrIMG->find<RenderDataImg>(state.mNodeIMG);
     state.mRdIMG      = rd;
-    state.mRdIMG->setLastFrame(mFrameCount);
+    if(state.mRdIMG != NULL) {
+      state.mRdIMG->setLastFrame(mFrameCount);
+    }
+    RenderDataImg* secrd = mTreeMgrIMG->findSec<RenderDataImg>(state.mNodeIMG);
+    if(secrd != NULL) {
+      secrd->setLastFrame(mFrameCount);
+    }
   } else {
     // copy value from parent state to ensure this matches state.mLastIMG
     state.mRdIMG = stateP.mRdIMG;
@@ -461,14 +476,17 @@ bool LODVisitor::visitNode(TileId const& tileId) {
 
   bool result  = false;
   bool visible = testVisible(tileId, mTreeMgrDEM);
-
+   LODState& state  = getLODState();
   if (visible) {
     // should this node be refined to achieve desired resolution?
     bool needRefine = testNeedRefine(tileId);
-
     if (needRefine) {
       result = handleRefine(tileId);
-    } else {
+    } else if(state.mNodeIMG && state.mNodeIMG->getTime() != "" && state.mNodeIMG->getTime() != mTime) {
+      TileId newTile(tileId.level(), tileId.patchIdx());
+      newTile.setTimes(mTime, mSecTime);
+      mLoadIMG.push_back(newTile);
+    }else {
       // resolution is sufficient
       drawLevel();
     }
@@ -556,12 +574,20 @@ void LODVisitor::addLoadChildrenIMG(TileNode* node) {
 
     for (int i = 0; i < 4; ++i) {
       if (!node->getChild(i)) {
-        mLoadIMG.push_back(HEALPix::getChildTileId(tileId, i));
+        TileId childId = HEALPix::getChildTileId(tileId, i);
+        childId.setTimes(mTime, mSecTime);
+        mLoadIMG.push_back(childId);
       } else {
         // mark child as used to avoid it being removed while waiting
         // for its siblings to be loaded
         RenderData* rd = mTreeMgrIMG->findRData(node->getChild(i));
-        rd->setLastFrame(mFrameCount);
+        if(rd != NULL) {
+          rd->setLastFrame(mFrameCount);
+        }
+        RenderData* secrd = mTreeMgrIMG->findRDataSec(node->getChild(i));
+        if(secrd != NULL) {
+          secrd->setLastFrame(mFrameCount);
+        }
       }
     }
   }
@@ -726,8 +752,13 @@ void LODVisitor::drawLevel() {
     // currently loaded) and has RenderDataIMG
     assert(state.mLastIMG || state.mNodeIMG);
     assert(state.mRdIMG);
-
+    TileNode* node = state.mRdIMG->getNode();
+    if(node->getSecTile()) {
+      RenderDataImg* rd = mTreeMgrIMG->findSec<RenderDataImg>(node);
+      mSecRenderIMG.push_back(rd);
+    }
     mRenderIMG.push_back(state.mRdIMG);
+
   }
 }
 
@@ -841,6 +872,12 @@ std::vector<RenderData*> const& LODVisitor::getRenderIMG() const {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+std::vector<RenderData*> const& LODVisitor::getSecRenderIMG() const {
+  return mSecRenderIMG;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void LODVisitor::pushState() {
   mStackTop += 1;
 
@@ -886,5 +923,10 @@ LODVisitor::LODState const& LODVisitor::getLODState(int level /*= -1*/) const {
   return mStack[level >= 0 ? level : mStackTop];
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  void LODVisitor::setTimes(std::string time, std::string secTime) {
+    mTime = time;
+    mSecTime = secTime;
+  }
 
 } // namespace csp::lodbodies

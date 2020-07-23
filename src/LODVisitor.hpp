@@ -77,6 +77,10 @@ class LODVisitor : public TileVisitor<LODVisitor> {
   /// Returns the image tiles that should be rendered.
   std::vector<RenderData*> const& getRenderIMG() const;
 
+  std::vector<RenderData*> const& getSecRenderIMG() const;
+
+  void setTimes(std::string time, std::string secTime);
+
  private:
   /// Struct storing information relevant for LOD selection.
   struct LODData {
@@ -164,6 +168,9 @@ class LODVisitor : public TileVisitor<LODVisitor> {
   std::vector<TileId>      mLoadIMG;
   std::vector<RenderData*> mRenderDEM;
   std::vector<RenderData*> mRenderIMG;
+  std::vector<RenderData*> mSecRenderIMG;
+  std::string mTime;
+  std::string mSecTime;
 
   int  mFrameCount;
   bool mUpdateLOD;

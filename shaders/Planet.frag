@@ -73,12 +73,21 @@ void main()
   #endif
 
   #if $SHOW_TEXTURE
+    vec3 fadeColor;
     #if $TEXTURE_IS_RGB
       fragColor = texture(VP_texIMG, vec3(fsIn.texcoords, VP_layerIMG)).rgb;
+      if(VP_secTexUsed) {
+        fadeColor = texture(VP_secTexIMG, vec3(fsIn.texcoords, VP_secLayerIMG)).rgb;
+      }
     #else
       fragColor = texture(VP_texIMG, vec3(fsIn.texcoords, VP_layerIMG)).rrr;
+      if(VP_secTexUsed) {
+        fadeColor = texture(VP_secTexIMG, vec3(fsIn.texcoords, VP_secLayerIMG)).rrr;
+      }
     #endif
-
+    if(VP_secTexUsed) {
+        fragColor = mix(fadeColor, fragColor, VP_fade);
+      }
     fragColor = pow(fragColor, vec3(1.0 / texGamma));
 
     // fragColor = (fragColor == vec3(0)) ? vec3(1) : fragColor;

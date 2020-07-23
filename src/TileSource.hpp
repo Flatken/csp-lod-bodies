@@ -9,6 +9,7 @@
 
 #include "TileDataType.hpp"
 #include "TileId.hpp"
+#include "timeUtils.h"
 
 namespace csp::lodbodies {
 
@@ -41,17 +42,24 @@ class TileSource {
   /// loaded). Optionally the node to store data in is passed as node - it must own a Tile of
   /// correct type or not own a tile at all (in which case a new one is allocated). If node is
   /// a nullptr a new node is allocated.
-  virtual TileNode* loadTile(int level, glm::int64 patchIdx) = 0;
+  virtual TileNode* loadTile(int level, glm::int64 patchIdx, std::string time = "", std::string secTime = "") = 0;
 
   /// Loads a node with given level and patchIdx asynchronously (i.e. the call returns immediately).
   /// Optionally the node to store data in is passed as node - it must own a Tile of correct type or
   /// not own a tile at all (in which case a new one is allocated). If node is a nullptr a new node
   /// is allocated. Once the node is loaded the given OnLoadCallack is invoked.
-  virtual void loadTileAsync(int level, glm::int64 patchIdx, OnLoadCallback cb) = 0;
+  virtual void loadTileAsync(int level, glm::int64 patchIdx, OnLoadCallback cb, std::string time = "", std::string secTime = "") = 0;
 
   /// Returns the number of currently active async requests.
   virtual int getPendingRequests() = 0;
-
+  
+  std::string getTimeIntervals() {
+    return mTimeIntervals;
+  }
+    
+  void setTimeIntervals(std::string timeIntervals) {
+    mTimeIntervals = timeIntervals;
+  }
   /// Can be used to identify this tile source.
   void setName(std::string const& name) {
     mName = name;
@@ -72,6 +80,7 @@ class TileSource {
  private:
   std::string mName;
   std::string mCopyright;
+  std::string mTimeIntervals;
 };
 } // namespace csp::lodbodies
 

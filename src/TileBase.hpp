@@ -63,6 +63,7 @@ class TileBase : private boost::noncopyable {
 
  protected:
   explicit TileBase(int level, glm::int64 patchIdx);
+  explicit TileBase(int level, glm::int64 patchIdx, std::string time, std::string secTime);
 
   TileId mTileId;
 

@@ -20,9 +20,18 @@ TileBase::~TileBase() {
 /* explicit */
 TileBase::TileBase(int level, glm::int64 patchIdx)
     : boost::noncopyable()
-    , mTileId(level, patchIdx)
+    , mTileId(level, patchIdx, "", "")
     , mMinMaxPyramid(nullptr) {
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TileBase::TileBase(int level, glm::int64 patchIdx, std::string time, std::string secTime)
+    : boost::noncopyable()
+    , mTileId(level, patchIdx, time, secTime)
+    , mMinMaxPyramid(nullptr) {
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

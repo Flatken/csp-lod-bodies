@@ -29,6 +29,9 @@ uniform vec2 VP_radius;
 // texture storing elevation data for all patches
 uniform sampler2DArray VP_texDEM;
 uniform sampler2DArray VP_texIMG;
+uniform sampler2DArray VP_secTexIMG;
+uniform bool VP_secTexUsed;
+uniform float VP_fade;
 
 // uniforms - current tile -----------------------------------------------------
 
@@ -62,6 +65,7 @@ uniform int VP_layerDEM;
 
 // layer of VP_texIMG the current patch's image data is stored in
 uniform int VP_layerIMG;
+uniform int VP_secLayerIMG;
 
 uniform vec3 VP_corners[4];
 uniform vec3 VP_normals[4];

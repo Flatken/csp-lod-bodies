@@ -13,6 +13,7 @@
 
 #include <boost/cast.hpp>
 #include <boost/pool/object_pool.hpp>
+#include <iostream>
 
 namespace csp::lodbodies {
 
@@ -27,14 +28,14 @@ class TreeManager : public TreeManagerBase {
   virtual ~TreeManager();
 
  protected:
-  virtual RenderData* allocateRenderData(TileNode* node);
+  virtual RenderData* allocateRenderData(TileNode* node, bool useSecTile);
   virtual void        releaseRenderData(RenderData* rdata);
 
   boost::object_pool<RDataT> mPool;
 };
 
 template <>
-/* virtual */ RenderData* TreeManager<RenderDataDEM>::allocateRenderData(TileNode* node);
+/* virtual */ RenderData* TreeManager<RenderDataDEM>::allocateRenderData(TileNode* node, bool useSecTile);
 
 template <typename RDataT>
 /* explicit */
@@ -50,10 +51,10 @@ TreeManager<RDataT>::~TreeManager() {
 }
 
 template <typename RDataT>
-/* virtual */ RenderData* TreeManager<RDataT>::allocateRenderData(TileNode* node) {
+/* virtual */ RenderData* TreeManager<RDataT>::allocateRenderData(TileNode* node, bool useSecTile) {
   RDataT* rdata = mPool.construct();
 
-  rdata->setNode(node);
+  rdata->setNode(node, useSecTile);
   rdata->setLastFrame(0);
 
   return rdata;

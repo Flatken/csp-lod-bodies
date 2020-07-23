@@ -12,6 +12,8 @@
 
 #include "TileDataType.hpp"
 
+#include "timeUtils.h"
+
 #include <glm/gtc/constants.hpp>
 #include <vector>
 
@@ -61,6 +63,7 @@ class Plugin : public cs::core::PluginBase {
       std::string  mCopyright; ///< The copyright holder of the data set (also shown in the UI).
       std::string  mLayers;    ///< A comma,seperated list of WMS layers.
       uint32_t     mMaxLevel;  ///< The maximum quadtree depth to load.
+      std::optional<std::string> mTime;
     };
 
     /// The startup settings for a planet.
@@ -89,8 +92,6 @@ class Plugin : public cs::core::PluginBase {
   std::vector<std::shared_ptr<LodBody>> mLodBodies;
   std::shared_ptr<Properties>           mProperties;
   float                                 mNonAutoLod;
-
-  int mActiveBodyConnection = -1;
 };
 
 } // namespace csp::lodbodies

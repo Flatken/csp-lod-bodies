@@ -35,6 +35,9 @@ GLint const  texUnitDEM     = 0;
 GLenum const texUnitNameIMG = GL_TEXTURE1;
 GLint const  texUnitIMG     = 1;
 
+GLenum const secTexUnitNameIMG = GL_TEXTURE2;
+GLint const  secTexUnitIMG     = 2;
+
 GLint const texUnitShadow = 2;
 
 GLsizeiptr const SizeX = TileBase::SizeX;
@@ -325,12 +328,12 @@ TerrainShader* TileRenderer::getTerrainShader() const {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TileRenderer::render(std::vector<RenderData*> const& reqDEM,
-    std::vector<RenderData*> const& reqIMG, cs::graphics::ShadowMap* shadowMap) {
+    std::vector<RenderData*> const& reqIMG, cs::graphics::ShadowMap* shadowMap, std::vector<RenderData*> const& secreqIMG, float fade) {
   init();
 
   if (mEnableDrawTiles && !reqDEM.empty()) {
-    preRenderTiles(shadowMap);
-    renderTiles(reqDEM, reqIMG);
+    preRenderTiles(shadowMap, fade);
+    renderTiles(reqDEM, reqIMG, secreqIMG);
     postRenderTiles(shadowMap);
   }
 
@@ -343,9 +346,13 @@ void TileRenderer::render(std::vector<RenderData*> const& reqDEM,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TileRenderer::preRenderTiles(cs::graphics::ShadowMap* shadowMap) {
+void TileRenderer::preRenderTiles(cs::graphics::ShadowMap* shadowMap, float fade) {
   TileTextureArray* glDEM = mTreeMgrDEM ? &mTreeMgrDEM->getTileTextureArray() : nullptr;
   TileTextureArray* glIMG = mTreeMgrIMG ? &mTreeMgrIMG->getTileTextureArray() : nullptr;
+  TileTextureArray* glSecIMG = mTreeMgrIMG ? &mTreeMgrIMG->getSecTileTextureArray() : nullptr;
+  mVaoTerrain->Bind();
+  mProgTerrain->bind();
+  VistaGLSLShader* shader = mProgTerrain->mShader;
 
   // setup OpenGL state
   glPushAttrib(GL_COLOR_BUFFER_BIT | GL_CURRENT_BIT | GL_ENABLE_BIT | GL_LIGHTING_BIT |
@@ -371,10 +378,13 @@ void TileRenderer::preRenderTiles(cs::graphics::ShadowMap* shadowMap) {
     glActiveTexture(texUnitNameIMG);
     glBindTexture(GL_TEXTURE_2D_ARRAY, glIMG->getTextureId());
   }
-
-  mVaoTerrain->Bind();
-  mProgTerrain->bind();
-  VistaGLSLShader* shader = mProgTerrain->mShader;
+  
+  if (glSecIMG && mTreeMgrIMG->getSecTexUsed()) {
+    glActiveTexture(secTexUnitNameIMG);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, glIMG->getTextureId());
+    GLint loc = shader->GetUniformLocation("VP_secTexUsed");
+    shader->SetUniform(loc, true);
+  }
 
   // update "frame global" uniforms
   GLint loc = shader->GetUniformLocation("VP_matProjection");
@@ -389,8 +399,12 @@ void TileRenderer::preRenderTiles(cs::graphics::ShadowMap* shadowMap) {
   shader->SetUniform(loc, texUnitDEM);
   loc = shader->GetUniformLocation("VP_texIMG");
   shader->SetUniform(loc, texUnitIMG);
+  loc = shader->GetUniformLocation("VP_secTexIMG");
+  shader->SetUniform(loc, secTexUnitIMG);
   loc = shader->GetUniformLocation("VP_shadowMapMode");
   shader->SetUniform(loc, shadowMap == nullptr);
+  loc = shader->GetUniformLocation("VP_fade");
+  shader->SetUniform(loc, fade);
 
   if (shadowMap) {
     shader->SetUniform(shader->GetUniformLocation("VP_shadowBias"), shadowMap->getBias());
@@ -414,7 +428,7 @@ void TileRenderer::preRenderTiles(cs::graphics::ShadowMap* shadowMap) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TileRenderer::renderTiles(
-    std::vector<RenderData*> const& renderDEM, std::vector<RenderData*> const& renderIMG) {
+    std::vector<RenderData*> const& renderDEM, std::vector<RenderData*> const& renderIMG, std::vector<RenderData*> const& renderSecIMG) {
   VistaGLSLShader* shader = mProgTerrain->mShader;
 
   // query uniform locations once and store in locs
@@ -429,6 +443,7 @@ void TileRenderer::renderTiles(
   locs.f1f2             = shader->GetUniformLocation("VP_f1f2");
   locs.layerDEM         = shader->GetUniformLocation("VP_layerDEM");
   locs.layerIMG         = shader->GetUniformLocation("VP_layerIMG");
+  locs.secLayerIMG      = shader->GetUniformLocation("VP_secLayerIMG");
 
   int missingDEM = 0;
   int missingIMG = 0;
@@ -439,6 +454,8 @@ void TileRenderer::renderTiles(
     RenderDataDEM* rdDEM = dynamic_cast<RenderDataDEM*>(renderDEM[i]);
     RenderDataImg* rdIMG =
         i < renderIMG.size() ? dynamic_cast<RenderDataImg*>(renderIMG[i]) : nullptr;
+    RenderDataImg* secrdIMG =
+        i < renderSecIMG.size() ? dynamic_cast<RenderDataImg*>(renderSecIMG[i]) : nullptr;
 
     // count cases of data not being on GPU ...
     if (rdDEM->getTexLayer() < 0)
@@ -459,7 +476,7 @@ void TileRenderer::renderTiles(
     }
 
     // render
-    renderTile(rdDEM, rdIMG, locs);
+    renderTile(rdDEM, rdIMG, locs, secrdIMG);
   }
 
   if (missingDEM || missingIMG) {
@@ -484,7 +501,7 @@ void TileRenderer::renderTiles(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TileRenderer::renderTile(RenderDataDEM* rdDEM, RenderDataImg* rdIMG, UniformLocs const& locs) {
+void TileRenderer::renderTile(RenderDataDEM* rdDEM, RenderDataImg* rdIMG, UniformLocs const& locs, RenderDataImg* secrdIMG) {
   VistaGLSLShader* shader   = mProgTerrain->mShader;
   TileId const&    idDEM    = rdDEM->getTileId();
   GLuint           idxCount = NumIndices;
@@ -521,6 +538,7 @@ void TileRenderer::renderTile(RenderDataDEM* rdDEM, RenderDataImg* rdIMG, Unifor
   shader->SetUniform(locs.demOffsetScale, 3, 1, glm::value_ptr(demOS));
   shader->SetUniform(locs.imgOffsetScale, 3, 1, glm::value_ptr(imgOS));
   shader->SetUniform(locs.layerIMG, rdIMG ? rdIMG->getTexLayer() : 0);
+  shader->SetUniform(locs.secLayerIMG, secrdIMG ? secrdIMG->getTexLayer() : 0);
   shader->SetUniform(locs.layerDEM, rdDEM->getTexLayer());
   shader->SetUniform(locs.edgeDelta, 4, 1, glm::value_ptr(edgeDelta));
   shader->SetUniform(locs.edgeLayerDEM, 4, 1, glm::value_ptr(edgeLayerDEM));

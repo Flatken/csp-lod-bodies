@@ -19,8 +19,9 @@ TileNode::TileNode()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TileNode::TileNode(TileBase* tile, int childMaxLevel)
+TileNode::TileNode(TileBase* tile, int childMaxLevel, TileBase* secTile)
     : mTile(tile)
+    , mSecTile(secTile)
     , mParent(NULL)
     , mChildren()
     , mChildMaxLevel(childMaxLevel) {
@@ -30,8 +31,9 @@ TileNode::TileNode(TileBase* tile, int childMaxLevel)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TileNode::TileNode(std::unique_ptr<TileBase>&& tile, int childMaxLevel)
+TileNode::TileNode(std::unique_ptr<TileBase>&& tile, int childMaxLevel, std::unique_ptr<TileBase>&& secTile)
     : mTile(std::move(tile))
+    , mSecTile(std::move(secTile))
     , mParent(NULL)
     , mChildren()
     , mChildMaxLevel(childMaxLevel) {
@@ -77,6 +79,12 @@ TileBase* TileNode::getTile() const {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+TileBase*  TileNode::getSecTile() const {
+  return mSecTile.get();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 TileBase* TileNode::releaseTile() {
   return mTile.release();
 }
@@ -87,6 +95,11 @@ void TileNode::setTile(TileBase* tile) {
   mTile.reset(tile);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TileNode::setSecTile(TileBase* tile) {
+  mSecTile.reset(tile);
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 TileNode* TileNode::getChild(int childIdx) const {
@@ -160,5 +173,21 @@ bool isRefined(TileNode const& node) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::string TileNode::getTime() const {
+  return mTime;
+}
+
+std::string TileNode::getSecTime() const {
+  return mSecTime;
+}
+
+void TileNode::setTime(std::string time) {
+  mTime = time;
+}
+
+void TileNode::setSecTime(std::string time) {
+  mSecTime = time;
+}
 
 } // namespace csp::lodbodies

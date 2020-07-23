@@ -70,7 +70,7 @@ class TileRenderer : private boost::noncopyable {
 
   /// Render the elevation and image tiles in reqDEM and reqIMG respectively.
   void render(std::vector<RenderData*> const& reqDEM, std::vector<RenderData*> const& reqIMG,
-      cs::graphics::ShadowMap* shadowMap);
+      cs::graphics::ShadowMap* shadowMap, std::vector<RenderData*> const& secreqIMG, float fade);
 
   /// Enable or disable drawing of tiles.
   void setDrawTiles(bool enable);
@@ -100,11 +100,12 @@ class TileRenderer : private boost::noncopyable {
     GLint f1f2;
     GLint layerDEM;
     GLint layerIMG;
+    GLint secLayerIMG;
   };
 
-  void preRenderTiles(cs::graphics::ShadowMap* shadowMap);
-  void renderTiles(std::vector<RenderData*> const& reqDEM, std::vector<RenderData*> const& reqIMG);
-  void renderTile(RenderDataDEM* rdDEM, RenderDataImg* rdIMG, UniformLocs const& locs);
+  void preRenderTiles(cs::graphics::ShadowMap* shadowMap, float fade);
+  void renderTiles(std::vector<RenderData*> const& reqDEM, std::vector<RenderData*> const& reqIMG, std::vector<RenderData*> const& renderSecIMG);
+  void renderTile(RenderDataDEM* rdDEM, RenderDataImg* rdIMG, UniformLocs const& locs, RenderDataImg* secrdIMG = nullptr);
   void postRenderTiles(cs::graphics::ShadowMap* shadowMap);
 
   void preRenderBounds();

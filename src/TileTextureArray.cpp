@@ -298,7 +298,13 @@ void TileTextureArray::allocateLayer(RenderData* rdata) {
   assert(rdata->getTexLayer() < 0);
 
   TileNode* node = rdata->getNode();
-  TileBase* tile = node->getTile();
+  TileBase* tile;
+  if(!rdata->getSecTileActive()) {
+    tile = node->getTile();
+  } else {
+    tile = node->getSecTile();
+  }
+   
 
   int layer = mFreeLayers.back();
   mFreeLayers.pop_back();

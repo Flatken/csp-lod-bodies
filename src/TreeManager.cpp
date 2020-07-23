@@ -13,15 +13,15 @@ namespace csp::lodbodies {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <>
-/* virtual */ RenderData* TreeManager<RenderDataDEM>::allocateRenderData(TileNode* node) {
+/* virtual */ RenderData* TreeManager<RenderDataDEM>::allocateRenderData(TileNode* node, bool useSecTile) {
   RenderDataDEM* rdata = mPool.construct();
 
   // init rdata
-  rdata->setNode(node);
   rdata->setLastFrame(0);
-
+  rdata->setNode(node);
   rdata->setBounds(calcTileBounds(
       *node->getTile(), mParams->mEquatorialRadius, mParams->mPolarRadius, mParams->mHeightScale));
+
 
   return rdata;
 }

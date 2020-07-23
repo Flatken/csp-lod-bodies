@@ -19,6 +19,7 @@ class Tile : public TileBase {
   typedef T                                                value_type;
 
   explicit Tile(int level, glm::int64 patchIdx);
+  explicit Tile(int level, glm::int64 patchIdx, std::string time, std::string secTime);
   virtual ~Tile();
 
   static std::type_info const& getStaticTypeId();
@@ -65,6 +66,12 @@ struct DataTypeTrait<glm::u8vec3> {
 template <typename T>
 Tile<T>::Tile(int level, glm::int64 patchIdx)
     : TileBase(level, patchIdx)
+    , mData() {
+}
+
+template <typename T>
+Tile<T>::Tile(int level, glm::int64 patchIdx, std::string time, std::string secTime)
+    : TileBase(level, patchIdx, time, secTime)
     , mData() {
 }
 

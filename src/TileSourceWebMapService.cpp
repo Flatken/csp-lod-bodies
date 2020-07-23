@@ -40,15 +40,31 @@ enum class CopyPixels { eAll, eAboveDiagonal, eBelowDiagonal };
 
 template <typename T>
 bool loadImpl(
-    TileSourceWebMapService* source, TileNode* node, int level, int x, int y, CopyPixels which) {
+    TileSourceWebMapService* source, TileNode* node, int level, int x, int y, CopyPixels which, std::string time = "", std::string secTime = "") {
   auto        tile = static_cast<Tile<T>*>(node->getTile());
+  auto        secTile = static_cast<Tile<T>*>(node->getSecTile());
   std::string cacheFile;
+  std::string secCacheFile;
 
   try {
-    cacheFile = source->loadData(level, x, y);
+    if(tile->getDataType() == TileDataType::eFloat32) {
+      cacheFile = source->loadData(level, x, y);
+    }else {
+      cacheFile = source->loadData(level, x, y, time);
+    }
+    
   } catch (std::exception const& e) {
     std::cerr << "Tile loading failed: " << e.what() << std::endl;
     return false;
+  }
+
+  if(secTile) {
+    try {
+      secCacheFile = source->loadData(level, x, y, secTime);
+    } catch (std::exception const& e) {
+      std::cerr << "Tile loading failed: " << e.what() << std::endl;
+      return false;
+    }
   }
 
   if (tile->getDataType() == TileDataType::eFloat32) {
@@ -107,6 +123,35 @@ bool loadImpl(
     }
 
     stbi_image_free(data);
+
+    if(secTile) {
+      channels = secTile->getDataType() == TileDataType::eU8Vec3 ? 3 : 1;
+
+      data = reinterpret_cast<T*>(stbi_load(secCacheFile.c_str(), &width, &height, &bpp, channels));
+
+      if (!data) {
+        std::cout << "Failed to load " << secCacheFile << std::endl;
+        return false;
+      }
+
+      if (which == CopyPixels::eAll) {
+        std::memcpy(secTile->data().data(), data, channels * width * height);
+      } else if (which == CopyPixels::eAboveDiagonal) {
+        for (int y = 0; y < height; ++y) {
+          int offset = width * y;
+          int count  = channels * (width - y - 1);
+          std::memcpy(secTile->data().data() + offset, data + offset, count);
+        }
+      } else if (which == CopyPixels::eBelowDiagonal) {
+        for (int y = 0; y < height; ++y) {
+          int offset = width * y + (width - y);
+          int count  = channels * y;
+          std::memcpy(secTile->data().data() + offset, data + offset, count);
+        }
+      }
+
+      stbi_image_free(data);
+      }
   }
 
   return true;
@@ -126,46 +171,7 @@ void fillDiagonal(TileNode* node) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TileNode* loadImpl(TileSourceWebMapService* source, uint32_t level, glm::int64 patchIdx) {
-  TileNode* node = new TileNode();
-
-  node->setTile(new Tile<T>(level, patchIdx));
-  node->setChildMaxLevel(std::min(level + 1, source->getMaxLevel()));
-
-  int  x, y;
-  bool onDiag = source->getXY(level, patchIdx, x, y);
-  if (onDiag) {
-    if (!loadImpl<T>(source, node, level, x, y, CopyPixels::eBelowDiagonal)) {
-      delete node;
-      return nullptr;
-    }
-
-    x += 4 * (1 << level);
-    y -= 4 * (1 << level);
-
-    if (!loadImpl<T>(source, node, level, x, y, CopyPixels::eAboveDiagonal)) {
-      delete node;
-      return nullptr;
-    }
-
-    fillDiagonal<T>(node);
-  } else {
-    if (!loadImpl<T>(source, node, level, x, y, CopyPixels::eAll)) {
-      delete node;
-      return nullptr;
-    }
-  }
-
-  // TODO: the NE and NW edges of all tiles should contain the values of the
-  // respective neighbours (for tile stiching). This is done by increasing the
-  // bounding box of the request by one pixel - this works more or less in the
-  // general case, but it doesn't when we are at a base patch border of the
-  // northern hemisphere. In this case we will get empty pixels! Therefore we
-  // fill the last column and row by copying.
-  // The proper solution would load the real neighbouring tiles and copy the
-  // pixel values!
-
-  auto         tile   = static_cast<Tile<T>*>(node->getTile());
+void adjustTileData(T tile, uint32_t level, glm::int64 patchIdx) {
   glm::i64vec3 baseXY = HEALPix::getBaseXY(TileId(level, patchIdx));
   glm::int64   nSide  = HEALPix::getNSide(TileId(level, patchIdx));
 
@@ -196,6 +202,63 @@ TileNode* loadImpl(TileSourceWebMapService* source, uint32_t level, glm::int64 p
     std::swap_ranges(tile->data().data() + i * 257, tile->data().data() + (i + 1) * 257,
         tile->data().data() + (256 - i) * 257);
   }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+TileNode* loadImpl(TileSourceWebMapService* source, uint32_t level, glm::int64 patchIdx, std::string time = "", std::string secTime = "") {
+  TileNode* node = new TileNode();
+
+  node->setTile(new Tile<T>(level, patchIdx, time, secTime));
+  node->setChildMaxLevel(std::min(level + 1, source->getMaxLevel()));
+  if(node->getTile()->getDataType() != TileDataType::eFloat32 && secTime != "") {
+    node->setSecTile(new Tile<T>(level, patchIdx, time, secTime));
+    node->setSecTime(secTime);
+  }
+  if(time != "") {
+    node->setTime(time);
+  }
+
+  int  x, y;
+  bool onDiag = source->getXY(level, patchIdx, x, y);
+  if (onDiag) {
+    if (!loadImpl<T>(source, node, level, x, y, CopyPixels::eBelowDiagonal, time, secTime)) {
+      delete node;
+      return nullptr;
+    }
+
+    x += 4 * (1 << level);
+    y -= 4 * (1 << level);
+
+    if (!loadImpl<T>(source, node, level, x, y, CopyPixels::eAboveDiagonal, time, secTime)) {
+      delete node;
+      return nullptr;
+    }
+
+    fillDiagonal<T>(node);
+  } else {
+    if (!loadImpl<T>(source, node, level, x, y, CopyPixels::eAll, time, secTime)) {
+      delete node;
+      return nullptr;
+    }
+  }
+
+  // TODO: the NE and NW edges of all tiles should contain the values of the
+  // respective neighbours (for tile stiching). This is done by increasing the
+  // bounding box of the request by one pixel - this works more or less in the
+  // general case, but it doesn't when we are at a base patch border of the
+  // northern hemisphere. In this case we will get empty pixels! Therefore we
+  // fill the last column and row by copying.
+  // The proper solution would load the real neighbouring tiles and copy the
+  // pixel values!
+
+  auto         tile   = static_cast<Tile<T>*>(node->getTile());
+  adjustTileData(tile, level, patchIdx);
+  if(node->getTile()->getDataType() != TileDataType::eFloat32) {
+    auto secTile = static_cast<Tile<T>*>(node->getSecTile());
+    adjustTileData(secTile, level,patchIdx);
+  }
 
   if (tile->getDataType() == TileDataType::eFloat32) {
     // Creating a MinMaxPyramid alongside the sampling beginning with a resolution of
@@ -209,6 +272,7 @@ TileNode* loadImpl(TileSourceWebMapService* source, uint32_t level, glm::int64 p
 
   return node;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -227,13 +291,13 @@ TileSourceWebMapService::TileSourceWebMapService()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/* virtual */ TileNode* TileSourceWebMapService::loadTile(int level, glm::int64 patchIdx) {
+/* virtual */ TileNode* TileSourceWebMapService::loadTile(int level, glm::int64 patchIdx, std::string time, std::string secTime) {
   if (mFormat == TileDataType::eFloat32)
-    return loadImpl<float>(this, level, patchIdx);
+    return loadImpl<float>(this, level, patchIdx, time, secTime);
   if (mFormat == TileDataType::eUInt8)
-    return loadImpl<glm::uint8>(this, level, patchIdx);
+    return loadImpl<glm::uint8>(this, level, patchIdx, time, secTime);
   if (mFormat == TileDataType::eU8Vec3)
-    return loadImpl<glm::u8vec3>(this, level, patchIdx);
+    return loadImpl<glm::u8vec3>(this, level, patchIdx, time, secTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -265,7 +329,7 @@ bool TileSourceWebMapService::getXY(int level, glm::int64 patchIdx, int& x, int&
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::string TileSourceWebMapService::loadData(int level, int x, int y) {
+std::string TileSourceWebMapService::loadData(int level, int x, int y, std::string time) {
 
   std::string format;
   std::string type;
@@ -285,7 +349,9 @@ std::string TileSourceWebMapService::loadData(int level, int x, int y) {
   cacheDir << mCache << "/" << mLayers << "/" << level << "/" << x;
 
   std::stringstream cacheFile(cacheDir.str());
-  cacheFile << cacheDir.str() << "/" << y << "." << type;
+  std::string timeFile = time;
+  std::replace(timeFile.begin(),timeFile.end(),'/','-');
+  cacheFile << cacheDir.str() << "/" << y << timeFile << "." << type;
   std::stringstream url;
 
   double size = 1.0 / (1 << level);
@@ -294,6 +360,9 @@ std::string TileSourceWebMapService::loadData(int level, int x, int y) {
   url << mUrl << "&version=1.1.0&request=GetMap&tiled=true&layers=" << mLayers
       << "&styles=" << mStyles << "&bbox=" << x * size << "," << y * size << "," << x * size + size
       << "," << y * size + size << "&width=257&height=257&srs=EPSG:900914&format=" << format;
+  if(time != "") {
+    url << "&time=" << time;
+  }
 
   auto cacheFilePath(boost::filesystem::path(cacheFile.str()));
 
@@ -364,9 +433,9 @@ std::string TileSourceWebMapService::loadData(int level, int x, int y) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* virtual */ void TileSourceWebMapService::loadTileAsync(
-    int level, glm::int64 patchIdx, OnLoadCallback cb) {
+    int level, glm::int64 patchIdx, OnLoadCallback cb, std::string time, std::string secTime) {
   mThreadPool.enqueue([=]() {
-    auto n = loadTile(level, patchIdx);
+    auto n = loadTile(level, patchIdx, time, secTime);
     cb(this, level, patchIdx, n);
   });
 }

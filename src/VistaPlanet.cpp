@@ -93,6 +93,11 @@ bool VistaPlanet::getWorldTransform(VistaTransformMatrix& matTransform) const {
   return true;
 }
 
+bool VistaPlanet::doTime(std::string time, std::string secTime, float fade) {
+  doFrame(time, secTime, fade);
+  return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* virtual */ bool VistaPlanet::GetBoundingBox(VistaBoundingBox& bb) {
@@ -197,9 +202,8 @@ TileSource* VistaPlanet::getIMGSource() const {
 // The funciton that drives all operations that need to be done each frame.
 // It simply calls the other functions in this section in order and passes
 // a few shared values between them (e.g. the matrices for the current view).
-void VistaPlanet::doFrame() {
+void VistaPlanet::doFrame(std::string time, std::string secTime, float fade) {
   int frameCount = GetVistaSystem()->GetFrameLoop()->GetFrameCount();
-
   // get matrices and viewport
   glm::dmat4   matVM    = getModelviewMatrix();
   glm::fmat4x4 matP     = getProjectionMatrix();
@@ -215,13 +219,13 @@ void VistaPlanet::doFrame() {
   updateTileTrees(frameCount);
 
   // determine tiles to draw and load
-  traverseTileTrees(frameCount, matVM, matP, viewport);
+  traverseTileTrees(frameCount, matVM, matP, viewport, time, secTime);
 
   // pass requests to load tiles to TreeManagers
   processLoadRequests();
 
   // render
-  renderTiles(frameCount, matVM, matP, mShadowMap);
+  renderTiles(frameCount, matVM, matP, mShadowMap, fade);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -296,12 +300,14 @@ void VistaPlanet::updateTileTrees(int frameCount) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void VistaPlanet::traverseTileTrees(
-    int frameCount, glm::dmat4 const& matVM, glm::fmat4x4 const& matP, glm::ivec4 const& viewport) {
+    int frameCount, glm::dmat4 const& matVM, glm::fmat4x4 const& matP, glm::ivec4 const& viewport, std::string time, std::string secTime) {
   // update per-frame information of LODVisitor
   mLodVisitor.setFrameCount(frameCount);
   mLodVisitor.setModelview(matVM);
   mLodVisitor.setProjection(matP);
   mLodVisitor.setViewport(viewport);
+
+  mLodVisitor.setTimes(time, secTime);
 
   // traverse quad trees and determine nodes to render and load
   // respectively
@@ -312,23 +318,23 @@ void VistaPlanet::traverseTileTrees(
 
 void VistaPlanet::processLoadRequests() {
   if (mSrcDEM) {
-    mTreeMgrDEM.request(mLodVisitor.getLoadDEM());
+    mTreeMgrDEM.request(mLodVisitor.getLoadDEM(), false);
   }
 
   if (mSrcIMG) {
-    mTreeMgrIMG.request(mLodVisitor.getLoadIMG());
+    mTreeMgrIMG.request(mLodVisitor.getLoadIMG(), true);
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void VistaPlanet::renderTiles(int frameCount, glm::dmat4 const& matVM, glm::fmat4x4 const& matP,
-    cs::graphics::ShadowMap* shadowMap) {
+    cs::graphics::ShadowMap* shadowMap, float fade) {
   // update per-frame information of TileRenderer
   mRenderer.setFrameCount(frameCount);
   mRenderer.setModelview(matVM);
   mRenderer.setProjection(matP);
-  mRenderer.render(mLodVisitor.getRenderDEM(), mLodVisitor.getRenderIMG(), shadowMap);
+  mRenderer.render(mLodVisitor.getRenderDEM(), mLodVisitor.getRenderIMG(), shadowMap, mLodVisitor.getSecRenderIMG(), fade);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

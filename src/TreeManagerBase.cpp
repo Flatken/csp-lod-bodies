@@ -91,7 +91,9 @@ TreeManagerBase::TreeManagerBase(
     PlanetParameters const& params, std::shared_ptr<GLResources> const& glResources)
     : mParams(&params)
     , mGlMgr(glResources)
+    , mSecGlMgr(glResources)
     , mRdMap()
+    , mSecRdMap()
     , mAgeStore()
     , mTree()
     , mSrc()
@@ -103,6 +105,7 @@ TreeManagerBase::TreeManagerBase(
     , mFrameCount(0)
     , mAsyncLoading(true) {
   mRdMap.reserve(preAllocNodeCount);
+  mSecRdMap.reserve(preAllocNodeCount);
   mAgeStore.reserve(preAllocNodeCount);
 
   mUnmergedNodes.reserve(preAllocIONodeCount);
@@ -132,7 +135,7 @@ TileSource* TreeManagerBase::getSource() const {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TreeManagerBase::request(std::vector<TileId> const& tileIds) {
+void TreeManagerBase::request(std::vector<TileId> const& tileIds, bool useTime) {
   // for each requested tile, check if it is already in the mPendingTiles
   // set (those are tiles that have already been requesed from the tile
   // source), otherwise put the tile in mPendingTiles and ask the source to
@@ -145,6 +148,7 @@ void TreeManagerBase::request(std::vector<TileId> const& tileIds) {
   auto iEnd = tileIds.end();
 
   for (; iIt != iEnd; ++iIt) {
+    auto pendIter = mPendingTiles.find(*iIt);
     if (mPendingTiles.count(*iIt) == 0) {
       mPendingTiles.insert(*iIt);
 
@@ -152,10 +156,17 @@ void TreeManagerBase::request(std::vector<TileId> const& tileIds) {
 #if (BOOST_VERSION / 100) % 1000 < 60
         mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
             std::bind(&TreeManagerBase::onNodeLoaded, this, _1, _2, _3, _4));
-#else
-        mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
+#else   
+        if(useTime) {
+          mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
+            std::bind(&TreeManagerBase::onNodeLoaded, this, std::placeholders::_1,
+                std::placeholders::_2, std::placeholders::_3, std::placeholders::_4), iIt->getTime(), iIt->getSecTime());
+        } else {
+          mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
             std::bind(&TreeManagerBase::onNodeLoaded, this, std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+        }
+        
 #endif
       } else {
         TileNode* node = mSrc->loadTile(iIt->level(), iIt->patchIdx());
@@ -176,7 +187,7 @@ void TreeManagerBase::update() {
   merge();
 
   // upload tiles to GPU
-  getTileTextureArray().processQueue(20);
+  getTileTextureArray().processQueue(30);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +203,15 @@ void TreeManagerBase::clear() {
     releaseResources(rdIt->second);
   }
 
+  rdIt = mSecRdMap.begin();
+  rdEnd = mSecRdMap.end();
+
+  for (; rdIt != rdEnd; ++rdIt) {
+    releaseResources(rdIt->second);
+  }
+
   mRdMap.clear();
+  mSecRdMap.clear();
   mAgeStore.clear();
 
   for (int i = 0; i < TileQuadTree::sNumRoots; ++i)
@@ -209,6 +228,10 @@ RenderData const* TreeManagerBase::findRData(TileNode const* node) const {
 
 RenderData* TreeManagerBase::findRData(TileNode const* node) {
   return findRData(node->getTileId());
+}
+
+RenderData* TreeManagerBase::findRDataSec(TileNode const* node) {
+  return findRDataSec(node->getTileId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -237,14 +260,25 @@ RenderData* TreeManagerBase::findRData(TileId const& tileId) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+RenderData* TreeManagerBase::findRDataSec(TileId const& tileId) {
+  RenderData* result = NULL;
+  auto        rdIt   = mSecRdMap.find(tileId);
+
+  if (rdIt != mSecRdMap.end())
+    result = rdIt->second;
+  return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 std::size_t TreeManagerBase::getNodeCount() const {
-  return mRdMap.size();
+  return mRdMap.size() + mSecRdMap.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::size_t TreeManagerBase::getNodeCountGPU() const {
-  return getTileTextureArray().getUsedLayerCount();
+  return getTileTextureArray().getUsedLayerCount() + getSecTileTextureArray().getTotalLayerCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -269,26 +303,63 @@ void TreeManagerBase::onNodeLoaded(
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TreeManagerBase::onNodeInserted(TileNode* node) {
-  RenderData* rdata = allocateRenderData(node);
-
+  if((mRdMap.count(node->getTileId()) != 0  || mSecRdMap.count(node->getTileId()) != 0) && mSrc->getDataType() != TileDataType::eFloat32) {
+    auto rdIt  = mAgeStore.begin();
+    auto rdEnd = mAgeStore.end();
+    for (; rdIt != rdEnd; ++rdIt) {
+      RDMapValue* value = *rdIt;
+      if(value->first == node->getTileId()) {
+        if(!value->second->getSecTileActive()) {
+          getTileTextureArray().releaseGPU(value->second);
+        } else {
+          getSecTileTextureArray().releaseGPU(value->second);
+        }
+        value->second->setNode(node);
+        if(!value->second->getSecTileActive()) {
+          getTileTextureArray().allocateGPU(value->second);
+        } else {
+          getSecTileTextureArray().allocateGPU(value->second);
+        }
+      }
+    }
+    return;
+  }
+  RenderData* rdata = allocateRenderData(node, false);
+  RenderData* rdataP = nullptr;
   if (node->getParent()) {
-    RenderData* rdataP = findRData(node->getParent());
+     rdataP = findRData(node->getParent());
     assert(rdataP != NULL);
 
     rdata->setLastFrame(rdataP->getLastFrame());
   }
-
   auto res = mRdMap.insert(RDMapValue(node->getTileId(), rdata));
   assert(res.second);
 
   getTileTextureArray().allocateGPU(rdata);
   mAgeStore.push_back(&(*res.first));
+
+  if(node->getSecTile()) {
+    mSecRes = true;
+    RenderData* secRdata = allocateRenderData(node, true);
+    auto res = mSecRdMap.insert(RDMapValue(node->getTileId(), secRdata));
+    assert(res.second);
+    getSecTileTextureArray().allocateGPU(secRdata);
+    mAgeStore.push_back(&(*res.first));
+    if (rdataP) {
+      secRdata->setLastFrame(rdataP->getLastFrame());
+    }
+
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TreeManagerBase::releaseResources(RenderData* rdata) {
-  getTileTextureArray().releaseGPU(rdata);
+  if(!rdata->getSecTileActive()) {
+    getTileTextureArray().releaseGPU(rdata);
+  } else {
+    getSecTileTextureArray().releaseGPU(rdata);
+  }
   releaseRenderData(rdata);
 }
 
@@ -301,20 +372,26 @@ void TreeManagerBase::prune() {
 
   while (!mAgeStore.empty()) {
     RDMapValue* value = mAgeStore.back();
+    TileId tileId = value->first;
 
     // remove unnused nodes, but never root nodes
-    if (value->second->getAge(mFrameCount) > maxNodeAge && value->first.level() > 0) {
+    if (value->second->getAge(mFrameCount) > maxNodeAge && tileId.level() > 0) {
       TileNode* node = value->second->getNode();
 
       releaseResources(value->second);
-
-      if (!removeNode(&mTree, node)) {
-        vstr::errp() << "[TreeManagerBase::prune] [" << mName << "] Failed to remove node "
-                     << value->first << " @ " << node << "!" << std::endl;
+    
+      // remove entries for node from internal data structures
+      if(value->second->getSecTileActive()) {
+        mSecRdMap.erase(tileId);
+      } else {
+        mRdMap.erase(tileId);
       }
 
-      // remove entries for node from internal data structures
-      mRdMap.erase(value->first);
+      if (mSecRdMap.count(tileId) == 0 && mRdMap.count(tileId) == 0
+      && !removeNode(&mTree, node)) {
+        vstr::errp() << "[TreeManagerBase::prune] [" << mName << "] Failed to remove node "
+                     << tileId << " @ " << node << "!" << std::endl;
+      }
       mAgeStore.pop_back();
       ++count;
     } else {
@@ -446,6 +523,14 @@ void TreeManagerBase::setFrameCount(int frameCount) {
 
 TileTextureArray& TreeManagerBase::getTileTextureArray() const {
   return (*mGlMgr)[mSrc->getDataType()];
+}
+
+TileTextureArray& TreeManagerBase::getSecTileTextureArray() const {
+   return (*mSecGlMgr)[mSrc->getDataType()];
+}
+
+bool TreeManagerBase::getSecTexUsed() {
+  return mSecRes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

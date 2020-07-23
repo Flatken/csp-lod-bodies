@@ -67,7 +67,7 @@ class TreeManagerBase : private boost::noncopyable {
 
   /// Request data tiles with indices tileIds to be loaded and queued to be merged into the quad
   /// tree (with a subsequent call to update).
-  void request(std::vector<TileId> const& tileIds);
+  void request(std::vector<TileId> const& tileIds, bool useTime=false);
 
   /// Update the TileQuadTree managed by this with the tiles that have been loaded from the
   /// TileSource since the last call to update.
@@ -99,6 +99,9 @@ class TreeManagerBase : private boost::noncopyable {
   template <typename RDataT>
   RDataT* find(TileId const& tileId);
 
+  template <typename RDataT>
+  RDataT* findSec(TileNode const* node); 
+
   /// Looks up RenderData associated with node node, returns nullptr if no data is associated with
   /// the node.
   RenderData const* findRData(TileNode const* node) const;
@@ -106,6 +109,8 @@ class TreeManagerBase : private boost::noncopyable {
   /// Looks up RenderData associated with node node, returns nullptr if no data is associated with
   /// the node.
   RenderData* findRData(TileNode const* node);
+
+  RenderData* findRDataSec(TileNode const* node);
 
   /// Looks up RenderData associated with node node, returns nullptr if no data is associated with
   /// the node.
@@ -115,9 +120,15 @@ class TreeManagerBase : private boost::noncopyable {
   /// the node.
   RenderData* findRData(TileId const& tileId);
 
+  RenderData* findRDataSec(TileId const& tileId);
+
   /// Returns a pointer to the TileTextureArray used by this to manage texture data. This is an
   /// internal interface for use by TileRenderer.
   TileTextureArray& getTileTextureArray() const;
+
+  TileTextureArray& getSecTileTextureArray() const;
+
+  bool getSecTexUsed();
 
   /// Returns the number of nodes in the tree managed by this.
   std::size_t getNodeCount() const;
@@ -150,7 +161,7 @@ class TreeManagerBase : private boost::noncopyable {
   void releaseResources(RenderData* rdata);
 
   /// Allocates and returns data to be associated with node.
-  virtual RenderData* allocateRenderData(TileNode* node) = 0;
+  virtual RenderData* allocateRenderData(TileNode* node, bool useSecTile) = 0;
 
   /// Releases the data associated with a node, which was previously returned by allocateRenderData.
   virtual void releaseRenderData(RenderData* rdata) = 0;
@@ -170,8 +181,12 @@ class TreeManagerBase : private boost::noncopyable {
 
   PlanetParameters const*                 mParams;
   std::shared_ptr<GLResources>            mGlMgr;
+  std::shared_ptr<GLResources>            mSecGlMgr;
   std::unordered_map<TileId, RenderData*> mRdMap;
+  std::unordered_map<TileId, RenderData*> mSecRdMap;
   AgeStore                                mAgeStore;
+
+  bool mSecRes = false;
 
   TileQuadTree mTree;
   TileSource*  mSrc;
@@ -205,6 +220,11 @@ RDataT const* TreeManagerBase::find(TileId const& tileId) const {
 template <typename RDataT>
 RDataT* TreeManagerBase::find(TileId const& tileId) {
   return dynamic_cast<RDataT*>(findRData(tileId));
+}
+
+template <typename RDataT>
+RDataT* TreeManagerBase::findSec(TileNode const* node) {
+  return dynamic_cast<RDataT*>(findRDataSec(node->getTileId()));
 }
 
 } // namespace csp::lodbodies
