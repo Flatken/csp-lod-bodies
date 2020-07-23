@@ -25,7 +25,14 @@ class TreeManager : public TreeManagerBase {
  public:
   explicit TreeManager(
       PlanetParameters const& params, std::shared_ptr<GLResources> const& glResources);
-  virtual ~TreeManager();
+
+  TreeManager(TreeManager const& other) = delete;
+  TreeManager(TreeManager&& other)      = delete;
+
+  TreeManager& operator=(TreeManager const& other) = delete;
+  TreeManager& operator=(TreeManager&& other) = delete;
+
+  ~TreeManager() override;
 
  protected:
   virtual RenderData* allocateRenderData(TileNode* node, bool useSecTile);
@@ -47,8 +54,7 @@ TreeManager<RDataT>::TreeManager(
 
 template <typename RDataT>
 /* virtual */
-TreeManager<RDataT>::~TreeManager() {
-}
+TreeManager<RDataT>::~TreeManager() = default;
 
 template <typename RDataT>
 /* virtual */ RenderData* TreeManager<RDataT>::allocateRenderData(TileNode* node, bool useSecTile) {

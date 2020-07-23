@@ -13,6 +13,8 @@
 
 #include <VistaBase/VistaStreamUtils.h>
 
+#include <utility>
+
 namespace csp::lodbodies {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,8 +72,9 @@ bool TreeManagerBase::AgeLess::operator()(RDMapValue const* lhs, RDMapValue cons
   int ageLHS = lhs->second->getAge(mFrame);
   int ageRHS = rhs->second->getAge(mFrame);
 
-  if (ageLHS == ageRHS)
+  if (ageLHS == ageRHS) {
     return lhs->first.level() < rhs->first.level();
+  }
 
   return ageLHS < ageRHS;
 }
@@ -88,7 +91,7 @@ TreeManagerBase::NodeAge::NodeAge(TileNode* node, int frame)
 
 /* explicit */
 TreeManagerBase::TreeManagerBase(
-    PlanetParameters const& params, std::shared_ptr<GLResources> const& glResources)
+    PlanetParameters const& params, std::shared_ptr<GLResources> glResources)
     : mParams(&params)
     , mGlMgr(glResources)
     , mSecGlMgr(glResources)
@@ -97,11 +100,6 @@ TreeManagerBase::TreeManagerBase(
     , mAgeStore()
     , mTree()
     , mSrc()
-    , mPendingTiles()
-    , mUnmergedNodes()
-    , mLoadedMtx()
-    , mLoadedNodes()
-    , mName()
     , mFrameCount(0)
     , mAsyncLoading(true) {
   mRdMap.reserve(preAllocNodeCount);
@@ -115,8 +113,7 @@ TreeManagerBase::TreeManagerBase(
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* virtual */
-TreeManagerBase::~TreeManagerBase() {
-}
+TreeManagerBase::~TreeManagerBase() = default;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -156,6 +153,7 @@ void TreeManagerBase::request(std::vector<TileId> const& tileIds, bool useTime) 
 #if (BOOST_VERSION / 100) % 1000 < 60
         mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
             std::bind(&TreeManagerBase::onNodeLoaded, this, _1, _2, _3, _4));
+<<<<<<< HEAD
 #else   
         if(useTime) {
           mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
@@ -167,6 +165,11 @@ void TreeManagerBase::request(std::vector<TileId> const& tileIds, bool useTime) 
                 std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
         }
         
+=======
+#else
+        mSrc->loadTileAsync(iIt->level(), iIt->patchIdx(),
+            [this](auto a, auto b, auto c, auto d) { onNodeLoaded(a, b, c, d); });
+>>>>>>> develop
 #endif
       } else {
         TileNode* node = mSrc->loadTile(iIt->level(), iIt->patchIdx());
@@ -214,8 +217,9 @@ void TreeManagerBase::clear() {
   mSecRdMap.clear();
   mAgeStore.clear();
 
-  for (int i = 0; i < TileQuadTree::sNumRoots; ++i)
-    mTree.setRoot(i, NULL);
+  for (int i = 0; i < TileQuadTree::sNumRoots; ++i) {
+    mTree.setRoot(i, nullptr);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -237,11 +241,12 @@ RenderData* TreeManagerBase::findRDataSec(TileNode const* node) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RenderData const* TreeManagerBase::findRData(TileId const& tileId) const {
-  RenderData const* result = NULL;
+  RenderData const* result = nullptr;
   auto              rdIt   = mRdMap.find(tileId);
 
-  if (rdIt != mRdMap.end())
+  if (rdIt != mRdMap.end()) {
     result = rdIt->second;
+  }
 
   return result;
 }
@@ -249,11 +254,12 @@ RenderData const* TreeManagerBase::findRData(TileId const& tileId) const {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 RenderData* TreeManagerBase::findRData(TileId const& tileId) {
-  RenderData* result = NULL;
+  RenderData* result = nullptr;
   auto        rdIt   = mRdMap.find(tileId);
 
-  if (rdIt != mRdMap.end())
+  if (rdIt != mRdMap.end()) {
     result = rdIt->second;
+  }
 
   return result;
 }
@@ -296,7 +302,7 @@ void TreeManagerBase::onNodeLoaded(
   } else {
     // source has changed or loading failed, discard node
     mPendingTiles.erase(TileId(level, patchIdx));
-    delete node;
+    delete node; // NOLINT(cppcoreguidelines-owning-memory): TODO where does it get created?
   }
 }
 
@@ -327,8 +333,13 @@ void TreeManagerBase::onNodeInserted(TileNode* node) {
   RenderData* rdata = allocateRenderData(node, false);
   RenderData* rdataP = nullptr;
   if (node->getParent()) {
+<<<<<<< HEAD
      rdataP = findRData(node->getParent());
     assert(rdataP != NULL);
+=======
+    RenderData* rdataP = findRData(node->getParent());
+    assert(rdataP != nullptr);
+>>>>>>> develop
 
     rdata->setLastFrame(rdataP->getLastFrame());
   }
@@ -427,15 +438,15 @@ void TreeManagerBase::merge() {
   int unmerged = 0;
 
   for (auto& node : mergeNodes) {
-    assert(node != NULL);
-    assert(node->getTile() != NULL);
+    assert(node != nullptr);
+    assert(node->getTile() != nullptr);
 
     if (insertNode(&mTree, node)) {
       mPendingTiles.erase(node->getTileId());
       onNodeInserted(node);
 
       ++merged;
-      node = NULL;
+      node = nullptr;
     } else {
       // keep track of nodes that could not be inserted, e.g. because
       // their parent is currently not loaded
@@ -462,7 +473,7 @@ void TreeManagerBase::merge() {
       mPendingTiles.erase(node->getTileId());
       mUnmergedNodes.erase(mUnmergedNodes.begin() + i);
 
-      delete node;
+      delete node; // NOLINT(cppcoreguidelines-owning-memory): TODO where does it get created?
     } else {
       ++i;
     }
@@ -475,7 +486,7 @@ void TreeManagerBase::merge() {
     // exceeds maxUnmergedAge (see mergeUnmerged).
     for (auto const& node : mergeNodes) {
       if (node) {
-        mUnmergedNodes.push_back(NodeAge(node, mFrameCount));
+        mUnmergedNodes.emplace_back(node, mFrameCount);
         --unmerged;
       }
     }

@@ -16,7 +16,7 @@ template <typename T>
 class Tile : public TileBase {
  public:
   typedef std::array<T, TileBase::SizeX * TileBase::SizeY> Storage;
-  typedef T                                                value_type;
+  using value_type = T;
 
   explicit Tile(int level, glm::int64 patchIdx);
   explicit Tile(int level, glm::int64 patchIdx, std::string time, std::string secTime);
@@ -25,10 +25,10 @@ class Tile : public TileBase {
   static std::type_info const& getStaticTypeId();
   static TileDataType          getStaticDataType();
 
-  virtual std::type_info const& getTypeId() const;
-  virtual TileDataType          getDataType() const;
+  std::type_info const& getTypeId() const override;
+  TileDataType          getDataType() const override;
 
-  virtual void const* getDataPtr() const;
+  void const* getDataPtr() const override;
 
   Storage const& data() const;
   Storage&       data();

@@ -12,8 +12,7 @@ namespace csp::lodbodies {
 
 TileNode::TileNode()
     : mTile()
-    , mParent(NULL)
-    , mChildren()
+    , mParent(nullptr)
     , mChildMaxLevel(0) {
 }
 
@@ -25,8 +24,9 @@ TileNode::TileNode(TileBase* tile, int childMaxLevel, TileBase* secTile)
     , mParent(NULL)
     , mChildren()
     , mChildMaxLevel(childMaxLevel) {
-  if (mChildMaxLevel < 0 && mTile)
+  if (mChildMaxLevel < 0 && mTile) {
     mChildMaxLevel = mTile->getLevel();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -37,8 +37,9 @@ TileNode::TileNode(std::unique_ptr<TileBase>&& tile, int childMaxLevel, std::uni
     , mParent(NULL)
     , mChildren()
     , mChildMaxLevel(childMaxLevel) {
-  if (mChildMaxLevel < 0 && mTile)
+  if (mChildMaxLevel < 0 && mTile) {
     mChildMaxLevel = mTile->getLevel();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,8 +92,8 @@ TileBase* TileNode::releaseTile() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TileNode::setTile(TileBase* tile) {
-  mTile.reset(tile);
+void TileNode::setTile(std::unique_ptr<TileBase> tile) {
+  mTile = std::move(tile);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,30 +104,33 @@ void TileNode::setSecTile(TileBase* tile) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 TileNode* TileNode::getChild(int childIdx) const {
-  return mChildren[childIdx].get();
+  return mChildren.at(childIdx).get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 TileNode* TileNode::releaseChild(int childIdx) {
-  if (mChildren[childIdx])
-    mChildren[childIdx]->setParent(NULL);
+  if (mChildren.at(childIdx)) {
+    mChildren.at(childIdx)->setParent(nullptr);
+  }
 
-  return mChildren[childIdx].release();
+  return mChildren.at(childIdx).release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TileNode::setChild(int childIdx, TileNode* child) {
   // unset OLD parent
-  if (mChildren[childIdx])
-    mChildren[childIdx]->setParent(NULL);
+  if (mChildren.at(childIdx)) {
+    mChildren.at(childIdx)->setParent(nullptr);
+  }
 
-  mChildren[childIdx].reset(child);
+  mChildren.at(childIdx).reset(child);
 
   // set NEW parent
-  if (mChildren[childIdx])
-    mChildren[childIdx]->setParent(this);
+  if (mChildren.at(childIdx)) {
+    mChildren.at(childIdx)->setParent(this);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

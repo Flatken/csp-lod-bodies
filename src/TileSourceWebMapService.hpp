@@ -20,8 +20,14 @@ namespace csp::lodbodies {
 class TileSourceWebMapService : public TileSource {
  public:
   TileSourceWebMapService();
-  virtual ~TileSourceWebMapService() {
-  }
+
+  TileSourceWebMapService(TileSourceWebMapService const& other) = delete;
+  TileSourceWebMapService(TileSourceWebMapService&& other)      = delete;
+
+  TileSourceWebMapService& operator=(TileSourceWebMapService const& other) = delete;
+  TileSourceWebMapService& operator=(TileSourceWebMapService&& other) = delete;
+
+  ~TileSourceWebMapService() override = default;
 
   void init() override {
   }
@@ -49,23 +55,27 @@ class TileSourceWebMapService : public TileSource {
   void         setDataType(TileDataType type);
   TileDataType getDataType() const override;
 
+  bool isSame(TileSource const* other) const override;
+
   /// These can be used to pre-populate the local cache, returns true if the tile is on the diagonal
   /// of base patch 4 (the one which is cut in two halves).
+<<<<<<< HEAD
   bool        getXY(int level, glm::int64 patchIdx, int& x, int& y);
   std::string loadData(int level, int x, int y, std::string time = "");
+=======
+  static bool getXY(int level, glm::int64 patchIdx, int& x, int& y);
+  std::string loadData(int level, int x, int y);
+>>>>>>> develop
 
  private:
   static std::mutex mTileSystemMutex;
 
   cs::utils::ThreadPool mThreadPool;
-  std::string           mConfig;
-
-  std::string  mUrl;
-  std::string  mCache = "cache/img";
-  std::string  mLayers;
-  std::string  mStyles;
-  TileDataType mFormat   = TileDataType::eU8Vec3;
-  uint32_t     mMaxLevel = 10;
+  std::string           mUrl;
+  std::string           mCache = "cache/img";
+  std::string           mLayers;
+  TileDataType          mFormat   = TileDataType::eU8Vec3;
+  uint32_t              mMaxLevel = 10;
 };
 } // namespace csp::lodbodies
 

@@ -48,7 +48,7 @@ class TileNode {
 
   /// Sets the tile to be owned by this. Exclusive ownership of the tile is taken by this and when
   /// this TileNode is destroyed the tile is destroyed as well.
-  void setTile(TileBase* tile);
+  void setTile(std::unique_ptr<TileBase> tile);
 
   void setSecTile(TileBase* tile);
 

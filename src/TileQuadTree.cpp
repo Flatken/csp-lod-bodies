@@ -14,13 +14,13 @@ namespace csp::lodbodies {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 TileNode* TileQuadTree::getRoot(int idx) const {
-  return mRoots[idx].get();
+  return mRoots.at(idx).get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TileQuadTree::setRoot(int idx, TileNode* root) {
-  mRoots[idx].reset(root);
+  mRoots.at(idx).reset(root);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,13 +68,13 @@ bool removeNode(TileQuadTree* tree, TileNode* node) {
     int childIdx = HEALPix::getChildIdx(node->getTileId());
     assert(parent->getChild(childIdx) == node);
 
-    parent->setChild(childIdx, NULL);
+    parent->setChild(childIdx, nullptr);
     result = true;
   } else {
     int childIdx = HEALPix::getChildIdx(node->getTileId());
     assert(tree->getRoot(childIdx) == node);
 
-    tree->setRoot(childIdx, NULL);
+    tree->setRoot(childIdx, nullptr);
     result = true;
   }
 
